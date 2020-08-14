@@ -1,0 +1,124 @@
+---
+title: "Practical Machine Learning Coursera Project"
+author: "Tanishq Porwal"
+date: "11/08/2020"
+output: 
+  html_document:
+    keep_md : true
+       
+
+---
+
+# Project Information:
+
+### Background: 
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+### Data
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+### Goal (What you should submit)
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+#Loading the necessary libraries:
+library(caret)
+library(rpart)
+library(ggplot2)
+library(e1071)
+library(rattle)
+```
+
+## Loading Data:
+```{r, echo=TRUE}
+#Loading the necessary libraries:
+train <- read.csv("E:\\RStudio\\projects\\PracticalMachineLearning\\pml-training.csv",na.strings=c("NA","#DIV/0!",""))
+test <- read.csv("E:\\RStudio\\projects\\PracticalMachineLearning\\pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
+```
+
+## Partitioning the training dataset into two parts:
+```{r, echo=TRUE}
+#Loading the necessary libraries:
+set.seed(12345)
+t <- createDataPartition(train$classe, p=0.6, list = FALSE)
+train1 <- train[t, ]
+valid <- train[-t, ]
+dim(train1); dim(valid)
+head(train1)
+```
+
+## Cleaning Data:
+Removing zero covariates, from this we will get to know about those variable who has very little variability and not likely good predictors.
+```{r, echo=TRUE}
+nzv <- nearZeroVar(train1, saveMetrics = TRUE)
+nzv
+```
+
+Removing the predictors which are not good:
+```{r, echo=TRUE}
+train1<- train1[,!nzv$nzv]; valid<- valid[,!nzv$nzv]; test <- test[,!nzv$nzv];
+dim(train1); dim(valid)
+head(train1)
+```
+Removing NAs
+```{r, echo=TRUE}
+cleantr <- train1[, colSums(is.na(train1)) == 0]
+cleanVa <- valid[, colSums(is.na(valid)) == 0]
+test<- test[,colSums(is.na(valid)) == 0]
+```
+Removing the class column from Training Set.
+```{r, echo=TRUE}
+finalTrain <- cleantr[, -(1:5)]
+finalValid <- cleanVa[,-(1:5)]
+```
+## Creating model:
+
+### Decision Tree
+```{r, echo=TRUE}
+set.seed(12345)
+modFit <- train(classe ~ .,method="rpart", data = finalTrain)
+modFit
+```
+Creating Decision Tree:
+```{r, echo=TRUE}
+fancyRpartPlot(modFit$finalModel)
+```
+Now, Predicting class using ValidationSet:
+```{r, echo=TRUE}
+pred <- predict(modFit, newdata = finalValid)
+cnfMatrix <- confusionMatrix(pred, data = as.factor(finalValid$classe))
+cnfMatrix
+plot(cnfMatrix$table, col = cnfMatrix$byClass, main = paste("Decision Tree - Accuracy =", round(cnfMatrix$overall['Accuracy'], 3)))
+```
+
+### Random Forest
+```{r, echo=TRUE}
+control <- trainControl(method="cv", number=5, verboseIter=TRUE)
+modFit1 <- train(classe ~ .,method="rf", trControl=control, data = finalTrain)
+modFit1
+```
+
+Now, Predicting class using ValidationSet:
+```{r, echo=TRUE}
+pred1 <- predict(modFit1, newdata = finalValid)
+cnfMatrix1 <- confusionMatrix(pred1, data = as.factor(finalValid$classe))
+cnfMatrix1
+plot(cnfMatrix1$table, col = cnfMatrix1$byClass, main = paste("Random Forest - Accuracy =", round(cnfMatrix1$overall['Accuracy'], 3)))
+```
+
+## Implementing Model on a Test Set:
+As the accuracy of model created with Random Forest is high as compare to model created with Decision Tree. So, we will use the Random Forest Model to predict the Test Set class.
+```{r, echo=TRUE}
+predResult <- predict(modFit1, newdata = test)
+predResult
+```
+
+
